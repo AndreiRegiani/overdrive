@@ -121,20 +121,20 @@ final class Lyrics {
         loading = true
 
         Task {
-            let result = await Lyrics.lookup(track)
+            let (result, source) = await Lyrics.lookup(track)
             guard generation == self.generation else { return }
 
-            apply(result)
+            apply(result, from: source)
             loading = false
         }
     }
 
-    private func apply(_ result: Result<String, Failure>) {
+    private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB or Letras.mus.br") {
         switch result {
         case .success(let lyrics) where !lyrics.isEmpty:
             original = lyrics
             text = lyrics
-            status = "From LRCLIB. Click Save to keep them."
+            status = "From \(source). Click Save to keep them."
         case .success:
             status = "No lyrics found."
         case .failure(.offline):
@@ -161,17 +161,31 @@ final class Lyrics {
     }
 
     @concurrent
-    private nonisolated static func lookup(_ track: Track) async -> Result<String, Failure> {
-        if let lyrics = read(key(track)) { return .success(lyrics) }
+    private nonisolated static func lookup(_ track: Track) async -> (Result<String, Failure>, String) {
+        if let lyrics = read(key(track)) { return (.success(lyrics), "LRCLIB or Letras.mus.br") }
 
         let result = await fetch(track)
 
-        if case .success(let lyrics) = result {
+        if case .success(let lyrics) = result, !lyrics.isEmpty {
             try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
             try? Data(lyrics.utf8).write(to: key(track), options: .atomic)
+            return (result, "LRCLIB")
         }
 
-        return result
+        let fallback = await LetrasBR.lyrics(artist: track.artist, title: track.title)
+
+        if !fallback.isEmpty {
+            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+            try? Data(fallback.utf8).write(to: key(track), options: .atomic)
+            return (.success(fallback), "Letras.mus.br")
+        }
+
+        if case .success = result {
+            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+            try? Data("".utf8).write(to: key(track), options: .atomic)
+        }
+
+        return (result, "LRCLIB")
     }
 
     private nonisolated static func fetch(_ track: Track) async -> Result<String, Failure> {
