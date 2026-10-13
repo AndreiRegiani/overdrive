@@ -89,13 +89,17 @@ enum LetrasBR {
         let web = WKWebView(frame: .zero)
         web.isHidden = true
         web.navigationDelegate = delegate
+        defer {
+            web.stopLoading()
+            web.navigationDelegate = nil
+        }
         let loaded = await withCheckedContinuation { continuation in
             delegate.done = continuation
             _ = web.load(URLRequest(url: url, timeoutInterval: 15))
-            Task { @MainActor in
+            Task { @MainActor [weak delegate] in
                 try? await Task.sleep(for: .seconds(15))
-                delegate.done?.resume(returning: false)
-                delegate.done = nil
+                delegate?.done?.resume(returning: false)
+                delegate?.done = nil
             }
         }
         guard loaded else { return nil }

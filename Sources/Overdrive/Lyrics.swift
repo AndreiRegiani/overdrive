@@ -112,7 +112,7 @@ final class Lyrics {
         original = ""
         text = ""
 
-        if let lyrics = Lyrics.read(Lyrics.key(track)) {
+        if let lyrics = Lyrics.read(Lyrics.key(track)), !lyrics.isEmpty {
             apply(.success(lyrics), from: "cache")
             loading = false
             return
@@ -162,7 +162,8 @@ final class Lyrics {
 
     @concurrent
     private nonisolated static func lookup(_ track: Track) async -> (Result<String, Failure>, String) {
-        if let lyrics = read(key(track)) { return (.success(lyrics), "cache") }
+        if let lyrics = read(key(track)), !lyrics.isEmpty { return (.success(lyrics), "cache") }
+        try? FileManager.default.removeItem(at: key(track))
 
         let result = await fetch(track)
 
@@ -186,11 +187,6 @@ final class Lyrics {
             try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
             try? Data(fallback.utf8).write(to: key(track), options: .atomic)
             return (.success(fallback), "Letras.mus.br")
-        }
-
-        if case .success = result {
-            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
-            try? Data("".utf8).write(to: key(track), options: .atomic)
         }
 
         return (result, "LRCLIB")

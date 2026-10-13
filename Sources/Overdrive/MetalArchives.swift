@@ -79,10 +79,10 @@ enum MetalArchives {
             return await withCheckedContinuation { continuation in
                 delegate.done = continuation
                 _ = web.load(URLRequest(url: url, timeoutInterval: 15))
-                Task { @MainActor in
+                Task { @MainActor [weak delegate] in
                     try? await Task.sleep(for: .seconds(15))
-                    delegate.done?.resume(returning: false)
-                    delegate.done = nil
+                    delegate?.done?.resume(returning: false)
+                    delegate?.done = nil
                 }
             }
         }
@@ -98,6 +98,10 @@ enum MetalArchives {
         guard let search = searchURL(artist: artist, title: title) else { return "" }
         let web = WKWebView(frame: .zero)
         web.isHidden = true
+        defer {
+            web.stopLoading()
+            web.navigationDelegate = nil
+        }
         guard await load(web, search) else { return "" }
         var json = ""
         for _ in 0..<14 {
