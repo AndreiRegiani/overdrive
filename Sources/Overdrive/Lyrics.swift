@@ -72,7 +72,6 @@ final class Lyrics {
     func refresh() {
         confirm {
             guard let track = self.track else { return }
-            try? FileManager.default.removeItem(at: Lyrics.file(track))
             try? FileManager.default.removeItem(at: Lyrics.key(track))
             try? FileManager.default.removeItem(at: Lyrics.oldKey(track))
             self.open(track)
