@@ -113,7 +113,7 @@ final class Lyrics {
         text = ""
 
         if let lyrics = Lyrics.read(Lyrics.key(track)) {
-            apply(.success(lyrics))
+            apply(.success(lyrics), from: "cache")
             loading = false
             return
         }
@@ -129,7 +129,7 @@ final class Lyrics {
         }
     }
 
-    private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB or Letras.mus.br") {
+    private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB, Metal Archives or Letras.mus.br") {
         switch result {
         case .success(let lyrics) where !lyrics.isEmpty:
             original = lyrics
@@ -162,7 +162,7 @@ final class Lyrics {
 
     @concurrent
     private nonisolated static func lookup(_ track: Track) async -> (Result<String, Failure>, String) {
-        if let lyrics = read(key(track)) { return (.success(lyrics), "LRCLIB or Letras.mus.br") }
+        if let lyrics = read(key(track)) { return (.success(lyrics), "cache") }
 
         let result = await fetch(track)
 
@@ -170,6 +170,14 @@ final class Lyrics {
             try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
             try? Data(lyrics.utf8).write(to: key(track), options: .atomic)
             return (result, "LRCLIB")
+        }
+
+        let metal = await MetalArchives.lyrics(artist: track.artist, title: track.title)
+
+        if !metal.isEmpty {
+            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+            try? Data(metal.utf8).write(to: key(track), options: .atomic)
+            return (.success(metal), "Metal Archives")
         }
 
         let fallback = await LetrasBR.lyrics(artist: track.artist, title: track.title)
