@@ -103,6 +103,7 @@ final class Library {
 
     @ObservationIgnored private var index = Index()
     @ObservationIgnored private var everything: [Track] = []
+    @ObservationIgnored private var lookup: [String: Track] = [:]
     @ObservationIgnored private var grouped: (version: Int, artists: [(name: String, albums: [Album])]) = (-1, [])
     @ObservationIgnored private var bytes: [UInt8] = []
     @ObservationIgnored private var tokens: [Range<Int>] = []
@@ -152,10 +153,19 @@ final class Library {
             Artwork.covers = result.covers
             index = result.index
             everything = result.albums.flatMap(\.tracks)
+            lookup = Dictionary(everything.map { ($0.url.path, $0) }) { first, _ in first }
             albums = result.albums
             search()
             scanning = false
         }
+    }
+
+    func tracks(_ paths: [String]) -> [Track] {
+        let all = paths.compactMap { lookup[$0] }
+        guard !query.isEmpty else { return all }
+
+        let hits = Set(tracks)
+        return all.filter(hits.contains)
     }
 
     private func search() {

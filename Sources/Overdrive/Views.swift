@@ -15,6 +15,18 @@ enum Section: String, CaseIterable, Identifiable {
     }
 }
 
+enum Page: Hashable {
+    case section(Section)
+    case playlist(String)
+
+    var title: String {
+        switch self {
+        case .section(let section): section.rawValue
+        case .playlist(let name): name
+        }
+    }
+}
+
 func count(_ number: Int, _ noun: String) -> String {
     "\(number) \(noun)\(number == 1 ? "" : "s")"
 }
@@ -27,14 +39,26 @@ extension Double {
     }
 }
 
-struct QueueMenu: View {
+struct TrackMenu: View {
     let tracks: [Track]
     @Environment(Player.self) private var player
+    @Environment(Playlists.self) private var playlists
 
     var body: some View {
         if !tracks.isEmpty {
             Button("Play Next") { player.insert(tracks, next: true) }
             Button("Add to Queue") { player.insert(tracks, next: false) }
+
+            Menu("Add to Playlist") {
+                ForEach(playlists.names, id: \.self) { name in
+                    Button(name) { playlists.add(tracks.map(\.url), to: name) }
+                }
+
+                if !playlists.names.isEmpty { Divider() }
+
+                Button("New Playlist…") { playlists.naming = tracks.map(\.url) }
+            }
+
             Divider()
         }
     }
@@ -199,7 +223,7 @@ struct AlbumGrid: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        QueueMenu(tracks: album.tracks)
+                        TrackMenu(tracks: album.tracks)
                         FileMenu(urls: album.tracks.map(\.url))
                     }
                 }
@@ -236,7 +260,7 @@ struct AlbumView: View {
                 }
                 .padding(.bottom, 20)
                 .contextMenu {
-                    QueueMenu(tracks: album.tracks)
+                    TrackMenu(tracks: album.tracks)
                     FileMenu(urls: album.tracks.map(\.url))
                 }
 
@@ -267,7 +291,7 @@ struct AlbumView: View {
                         .stripe(index)
                         .onTapGesture(count: 2) { player.play(album.tracks, at: index) }
                         .contextMenu {
-                            QueueMenu(tracks: [track])
+                            TrackMenu(tracks: [track])
                             FileMenu(urls: [track.url])
                         }
                     }
@@ -299,7 +323,9 @@ struct ArtistList: View {
 
 struct SongTable: View {
     let tracks: [Track]
+    var playlist: String?
     @Environment(Player.self) private var player
+    @Environment(Playlists.self) private var playlists
     @State private var selection: Track.ID?
 
     var body: some View {
@@ -310,12 +336,34 @@ struct SongTable: View {
             TableColumn("Time") { Text($0.duration.time).monospacedDigit().padding(.vertical, Stripe.padding) }.width(60)
         }
         .contextMenu(forSelectionType: Track.ID.self) { ids in
-            QueueMenu(tracks: tracks.filter { ids.contains($0.id) })
+            TrackMenu(tracks: tracks.filter { ids.contains($0.id) })
+
+            if let playlist, !ids.isEmpty {
+                Button("Remove from Playlist") { playlists.remove(ids, from: playlist) }
+                Divider()
+            }
+
             FileMenu(urls: Array(ids))
         } primaryAction: { ids in
             guard let id = ids.first, let index = tracks.firstIndex(where: { $0.id == id }) else { return }
 
             player.play(tracks, at: index)
+        }
+    }
+}
+
+struct PlaylistView: View {
+    let name: String
+    @Environment(Library.self) private var library
+    @Environment(Playlists.self) private var playlists
+
+    var body: some View {
+        let tracks = library.tracks(playlists.paths[name] ?? [])
+
+        if playlists.paths[name]?.isEmpty ?? true {
+            ContentUnavailableView("No Songs", systemImage: "music.note.list", description: Text("Right-click a song or an album and choose Add to Playlist."))
+        } else {
+            SongTable(tracks: tracks, playlist: name).navigationSubtitle(count(tracks.count, "song"))
         }
     }
 }
@@ -386,9 +434,11 @@ struct ContentView: View {
     let search: Int
     @Environment(Library.self) private var library
     @Environment(Player.self) private var player
+    @Environment(Playlists.self) private var playlists
     @State private var lyrics = Lyrics()
     @State private var depth = 0
-    @State private var section = Section.albums
+    @State private var page = Page.section(.albums)
+    @State private var name = ""
     @State private var path = NavigationPath()
     @FocusState private var searching: Bool
 
@@ -397,8 +447,31 @@ struct ContentView: View {
 
         VStack(spacing: 0) {
             NavigationSplitView {
-                List(Section.allCases, selection: Binding { section } set: { value in lyrics.confirm { section = value } }) { section in
-                    Label(section.rawValue, systemImage: section.symbol)
+                List(selection: Binding<Page?> { page } set: { value in if let value { lyrics.confirm { page = value } } }) {
+                    ForEach(Section.allCases) { section in
+                        Label(section.rawValue, systemImage: section.symbol).tag(Page.section(section))
+                    }
+
+                    SwiftUI.Section {
+                        ForEach(playlists.names, id: \.self) { name in
+                            Label(name, systemImage: "music.note.list")
+                                .tag(Page.playlist(name))
+                                .contextMenu {
+                                    Button("Delete Playlist") {
+                                        if page == .playlist(name) { page = .section(.albums) }
+                                        playlists.delete(name)
+                                    }
+                                }
+                        }
+                    } header: {
+                        HStack {
+                            Text("Playlists")
+                            Spacer()
+                            Button("New Playlist", systemImage: "plus") { playlists.naming = [] }
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.borderless)
+                        }
+                    }
                 }
                 .navigationSplitViewColumnWidth(180)
             } detail: {
@@ -416,16 +489,17 @@ struct ContentView: View {
                             ProgressView()
                         } else {
                             Group {
-                                switch section {
-                                case .albums: AlbumGrid(albums: library.filtered)
-                                case .artists: ArtistList(artists: library.artists)
-                                case .songs: SongTable(tracks: library.tracks).navigationSubtitle(count(library.tracks.count, "song"))
+                                switch page {
+                                case .section(.albums): AlbumGrid(albums: library.filtered)
+                                case .section(.artists): ArtistList(artists: library.artists)
+                                case .playlist(let name): PlaylistView(name: name)
+                                case .section(.songs): SongTable(tracks: library.tracks).navigationSubtitle(count(library.tracks.count, "song"))
                                 }
                             }
                             .id(library.version)
                         }
                     }
-                    .navigationTitle(section.rawValue)
+                    .navigationTitle(page.title)
                     .modifier(LyricsToolbar())
                     .navigationDestination(for: Album.self) { AlbumView(album: $0).modifier(LyricsToolbar()) }
                     .navigationDestination(for: String.self) { name in
@@ -462,12 +536,22 @@ struct ContentView: View {
             Button("Discard", role: .destructive, action: lyrics.discard)
             Button("Cancel", role: .cancel, action: lyrics.cancel)
         }
+        .alert("New Playlist", isPresented: Binding { playlists.naming != nil } set: { if !$0 { playlists.naming = nil } }) {
+            TextField("Name", text: $name)
+            Button("Create") {
+                let urls = playlists.naming ?? []
+                if let created = playlists.create(name, urls), urls.isEmpty { page = .playlist(created) }
+                name = ""
+            }
+            .disabled(!playlists.valid(name))
+            Button("Cancel", role: .cancel) { name = "" }
+        }
         .environment(lyrics)
         .onChange(of: player.current) {
             if let current = player.current { lyrics.show(current) }
         }
         .onChange(of: search) { searching = true }
-        .onChange(of: section) { path = NavigationPath() }
+        .onChange(of: page) { path = NavigationPath() }
         .onChange(of: lyrics.visible) {
             if lyrics.visible { depth = path.count }
         }

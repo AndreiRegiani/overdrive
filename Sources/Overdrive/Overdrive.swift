@@ -34,6 +34,7 @@ struct Reopen: ViewModifier {
 struct Overdrive: App {
     @NSApplicationDelegateAdaptor private var delegate: Delegate
     @State private var library = Library()
+    @State private var playlists = Playlists()
     @State private var lastFM: LastFM
     @State private var player: Player
     @State private var search = 0
@@ -51,6 +52,7 @@ struct Overdrive: App {
             ContentView(search: search)
                 .environment(library)
                 .environment(player)
+                .environment(playlists)
                 .modifier(Reopen(delegate: delegate))
         }
         .defaultWindowPlacement { _, context in
@@ -60,7 +62,17 @@ struct Overdrive: App {
         .restorationBehavior(.disabled)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("Rescan Library", action: library.scan).keyboardShortcut("r")
+                Button("New Playlist…") {
+                    delegate.open?(id: "main")
+                    playlists.naming = []
+                }
+                .keyboardShortcut("n")
+
+                Button("Rescan Library") {
+                    library.scan()
+                    playlists.load()
+                }
+                .keyboardShortcut("r")
             }
 
             CommandGroup(after: .textEditing) {

@@ -15,13 +15,14 @@ Music player for macOS 26 or later.
 - Shows and edits lyrics in a panel.
 - Sends scrobbles to Last.fm.
 - Opens tracks and albums in Mp3tag from the context menu.
+- Right-click a song or an album and choose Play Next or Add to Queue.
 - Use the media keys (⏪ ⏯ ⏩) to go to the previous song, play or pause, and go to the next song.
 - Press Control-P to clear the search field and type a new search.
 - Click the cover or the title in the player bar to open the album that plays.
 
 ## Lyrics
 
-Click the lyrics button in the toolbar to show the lyrics of the song that plays, or choose Lyrics from the context menu of a song.
+Click the lyrics button in the toolbar to show the lyrics of the song that plays.
 
 - The app reads the lyrics from the `.lrc` file next to the song, for example `Song.lrc` for `Song.mp3`.
 - When a song starts to play, the panel opens, also if the song has no lyrics, so you can type them. When the song changes, the panel shows the lyrics of the new song.
@@ -29,6 +30,15 @@ Click the lyrics button in the toolbar to show the lyrics of the song that plays
 - If there is no `.lrc` file, the app gets the lyrics from [LRCLIB](https://lrclib.net) one time and keeps them in `~/Library/Application Support/Overdrive/Lyrics`. It writes nothing to the music folder until you click Save.
 - Click Save (Command-S) to write the `.lrc` file. Save with an empty text to delete the file.
 - If the lyrics have unsaved changes, the app asks before it leaves the album, closes the panel, or shows other lyrics. You can save, discard, or cancel and continue to edit.
+
+## Playlists
+
+- Each playlist is a file in `~/Music/Library/Playlists`, for example `Rock.playlist`. The file has one absolute path of a song on each line.
+- Click the + button in the sidebar or choose File > New Playlist (Command-N) to make a playlist.
+- Right-click a song or an album and choose Add to Playlist. A playlist does not keep the same song two times.
+- Right-click a song in a playlist and choose Remove from Playlist.
+- Right-click a playlist in the sidebar and choose Delete Playlist. The app moves the file to the Trash.
+- If you edit a playlist file in a different app, choose File > Rescan Library (Command-R).
 
 ## Install
 
