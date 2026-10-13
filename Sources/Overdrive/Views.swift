@@ -115,18 +115,36 @@ struct LyricsView: View {
     static let width: CGFloat = 320
 
     @Environment(Lyrics.self) private var lyrics
+    @Environment(Player.self) private var player
+    @State private var editing = false
 
     var body: some View {
         @Bindable var lyrics = lyrics
 
         if let track = lyrics.track {
+            let lines = lyrics.synced
+            let live = player.current == track
+            let current = live ? Lyrics.index(at: player.position, in: lines) : nil
+
             VStack(alignment: .leading, spacing: 8) {
-                Text(track.title).font(.headline).lineLimit(2)
-                Text(track.artist).foregroundStyle(.secondary).lineLimit(1)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading) {
+                        Text(track.title).font(.headline).lineLimit(2)
+                        Text(track.artist).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer()
+                    if !lines.isEmpty {
+                        Button(editing ? "Done" : "Edit", systemImage: editing ? "checkmark" : "pencil", action: { editing.toggle() })
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.borderless)
+                    }
+                }
 
                 Group {
                     if lyrics.loading {
                         ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if !editing, !lines.isEmpty {
+                        SyncedLyrics(lines: lines, current: current) { player.seek($0) }
                     } else {
                         TextEditor(text: $lyrics.text)
                             .font(.body)
@@ -145,8 +163,39 @@ struct LyricsView: View {
                 }
             }
             .padding()
+            .onChange(of: track) { editing = false }
         } else {
             ContentUnavailableView("No Song", systemImage: "quote.bubble", description: Text("Play a song, or choose Lyrics from the menu of a song."))
+        }
+    }
+}
+
+struct SyncedLyrics: View {
+    let lines: [SyncedLine]
+    let current: Int?
+    let seek: (Double) -> Void
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(lines.indices, id: \.self) { index in
+                        Text(lines[index].text)
+                            .font(.body)
+                            .foregroundStyle(index == current ? .primary : .secondary)
+                            .contentShape(.rect)
+                            .onTapGesture { seek(lines[index].time) }
+                            .id(index)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .onChange(of: current) { _, index in
+                guard let index else { return }
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(index, anchor: .center) }
+            }
+            .onAppear { if let current { proxy.scrollTo(current, anchor: .center) } }
         }
     }
 }
