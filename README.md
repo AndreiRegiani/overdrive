@@ -16,6 +16,7 @@ Music player for macOS 26 or later.
 - Sends scrobbles to Last.fm.
 - Opens tracks and albums in Mp3tag from the context menu.
 - Right-click a song or an album and choose Play Next or Add to Queue.
+- Select more than one song with Command-click or Shift-click. Then right-click a selected song to use the menu on all selected songs. Right-click a song that is not selected to use the menu on only that song.
 - Use the media keys (⏪ ⏯ ⏩) to go to the previous song, play or pause, and go to the next song.
 - Press Control-P to clear the search field and type a new search.
 - Click the cover or the title in the player bar to open the album that plays.
@@ -38,7 +39,7 @@ Click the lyrics button in the toolbar to show the lyrics of the song that plays
 - Right-click a song or an album and choose Add to Playlist. Add to Playlist does not add a song that is already in the playlist. In a playlist, the menu does not show the playlist that is open.
 - Right-click a song in a playlist and choose Duplicate to have the same song two or more times.
 - Drag a song in a playlist to change the order.
-- Right-click a song in a playlist and choose Remove from Playlist, or select it and press Delete. The app asks before it removes the song.
+- Right-click a song in a playlist and choose Remove from Playlist, or select it and press Delete. The app asks before it removes the song. These actions also work on more than one selected song.
 - When you open a playlist, the app clears the search field.
 - Right-click a song in a playlist or in Songs and choose Go to Album or Go to Artist. Click Back to go back to the list.
 - Right-click a playlist in the sidebar and choose Delete Playlist. The app asks first, then renames the file to `{name}.backup` in the same folder. To restore the playlist, rename the file back to `{name}.playlist` and choose File > Rescan Library.
@@ -79,7 +80,7 @@ brew update
 brew upgrade --cask overdrive
 ```
 
-Do not run a local build as the installed app.
+Do all tests on the release from GitHub and Homebrew, the same as a real installation. Use a local build only to debug or profile. Do not run a local build as the installed app.
 
 ## Last.fm
 

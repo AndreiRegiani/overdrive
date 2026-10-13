@@ -251,19 +251,20 @@ struct Stripe: ViewModifier {
     static let padding: CGFloat = 5
 
     let index: Int
+    var selected = false
 
     func body(content: Content) -> some View {
         content
             .padding(.horizontal, 10)
             .frame(height: Stripe.height)
-            .background(index.isMultiple(of: 2) ? .clear : Color(nsColor: NSColor.alternatingContentBackgroundColors[1]), in: RoundedRectangle(cornerRadius: 6))
+            .background(selected ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor) : index.isMultiple(of: 2) ? .clear : Color(nsColor: NSColor.alternatingContentBackgroundColors[1]), in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
     }
 }
 
 extension View {
-    func stripe(_ index: Int) -> some View {
-        modifier(Stripe(index: index))
+    func stripe(_ index: Int, selected: Bool = false) -> some View {
+        modifier(Stripe(index: index, selected: selected))
     }
 }
 
@@ -316,6 +317,8 @@ struct AlbumView: View {
     let album: Album
     @Environment(Player.self) private var player
     @Environment(Lyrics.self) private var lyrics
+    @State private var selection: Set<Track.ID> = []
+    @State private var anchor: Int?
 
     var body: some View {
         ScrollView {
@@ -367,11 +370,13 @@ struct AlbumView: View {
 
                             Text(track.duration.time).monospacedDigit().foregroundStyle(.secondary)
                         }
-                        .stripe(index)
-                        .onTapGesture(count: 2) { player.play(album.tracks, at: index) }
+                        .stripe(index, selected: selection.contains(track.id))
+                        .onTapGesture { select(index) }
                         .contextMenu {
-                            TrackMenu(tracks: [track])
-                            FileMenu(urls: [track.url])
+                            let tracks = selection.contains(track.id) ? album.tracks.filter { selection.contains($0.id) } : [track]
+
+                            TrackMenu(tracks: tracks)
+                            FileMenu(urls: tracks.map(\.url))
                         }
                     }
                 }
@@ -380,6 +385,25 @@ struct AlbumView: View {
             .padding(.trailing, lyrics.visible ? LyricsView.width : 0)
         }
         .navigationTitle(album.title)
+    }
+
+    private func select(_ index: Int) {
+        let event = NSApp.currentEvent
+        let flags = event?.modifierFlags ?? []
+        let id = album.tracks[index].id
+
+        if event?.clickCount == 2 {
+            selection = [id]
+            player.play(album.tracks, at: index)
+        } else if flags.contains(.shift), let anchor, album.tracks.indices.contains(anchor) {
+            selection = Set(album.tracks[min(anchor, index)...max(anchor, index)].map(\.id))
+        } else if flags.contains(.command) {
+            if selection.remove(id) == nil { selection.insert(id) }
+            anchor = index
+        } else {
+            selection = [id]
+            anchor = index
+        }
     }
 }
 
@@ -425,7 +449,7 @@ struct GoMenu: View {
 struct SongTable: View {
     let tracks: [Track]
     @Environment(Player.self) private var player
-    @State private var selection: Track.ID?
+    @State private var selection: Set<Track.ID> = []
 
     var body: some View {
         Table(tracks, selection: $selection) {
@@ -455,8 +479,8 @@ struct PlaylistView: View {
     @Environment(Library.self) private var library
     @Environment(Player.self) private var player
     @Environment(Playlists.self) private var playlists
-    @State private var selection: Row.ID?
-    @State private var removing: Row?
+    @State private var selection: Set<Row.ID> = []
+    @State private var removing: [Row] = []
 
     var body: some View {
         let rows = library.rows(playlists.paths[name] ?? [])
@@ -474,31 +498,35 @@ struct PlaylistView: View {
                     .dropDestination(for: String.self) { index, ids in move(rows, ids.compactMap { Int($0) }, to: index) }
             }
             .onDeleteCommand {
-                removing = rows.first { $0.id == selection }
+                removing = rows.filter { selection.contains($0.id) }
             }
             .contextMenu(forSelectionType: Row.ID.self) { ids in
-                if let row = rows.first(where: { ids.contains($0.id) }) {
-                    TrackMenu(tracks: [row.track], exclude: name)
-                    Button("Remove from Playlist") { removing = row }
+                let picked = rows.filter { ids.contains($0.id) }
+
+                if !picked.isEmpty {
+                    TrackMenu(tracks: picked.map(\.track), exclude: name)
+                    Button("Remove from Playlist") { removing = picked }
                     Button("Duplicate") {
-                        selection = nil
-                        playlists.duplicate(row.id, in: name)
+                        selection = []
+                        playlists.duplicate(Set(ids), in: name)
                     }
                     Divider()
-                    GoMenu(track: row.track)
-                    FileMenu(urls: [row.track.url])
+
+                    if picked.count == 1 {
+                        GoMenu(track: picked[0].track)
+                    }
+
+                    FileMenu(urls: picked.map(\.track.url))
                 }
             } primaryAction: { ids in
                 guard let id = ids.first, let index = rows.firstIndex(where: { $0.id == id }) else { return }
 
                 player.play(rows.map(\.track), at: index)
             }
-            .confirmationDialog("Remove “\(removing?.track.title ?? "")” from the playlist?", isPresented: Binding { removing != nil } set: { if !$0 { removing = nil } }) {
+            .confirmationDialog(removing.count == 1 ? "Remove “\(removing[0].track.title)” from the playlist?" : "Remove \(count(removing.count, "song")) from the playlist?", isPresented: Binding { !removing.isEmpty } set: { if !$0 { removing = [] } }) {
                 Button("Remove", role: .destructive) {
-                    if let removing {
-                        selection = nil
-                        playlists.remove(removing.id, from: name)
-                    }
+                    selection = []
+                    playlists.remove(Set(removing.map(\.id)), from: name)
                 }
             }
             .navigationSubtitle(count(rows.count, "song"))
@@ -515,7 +543,7 @@ struct PlaylistView: View {
 
         order.removeAll { moved.contains($0) }
         order.insert(contentsOf: dragged, at: target)
-        selection = nil
+        selection = []
         playlists.reorder(order, in: name)
     }
 }

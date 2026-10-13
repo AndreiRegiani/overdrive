@@ -61,20 +61,27 @@ final class Playlists {
         save(name, list)
     }
 
-    func remove(_ position: Int, from name: String) {
+    func remove(_ positions: Set<Int>, from name: String) {
         var list = paths[name] ?? []
-        guard list.indices.contains(position) else { return }
+        guard positions.contains(where: list.indices.contains) else { return }
 
-        list.remove(at: position)
+        list.removeSubranges(RangeSet(positions.filter(list.indices.contains).map { $0..<$0 + 1 }))
         save(name, list)
     }
 
-    func duplicate(_ position: Int, in name: String) {
-        var list = paths[name] ?? []
-        guard list.indices.contains(position) else { return }
+    func duplicate(_ positions: Set<Int>, in name: String) {
+        let list = paths[name] ?? []
+        guard positions.contains(where: list.indices.contains) else { return }
 
-        list.insert(list[position], at: position + 1)
-        save(name, list)
+        var result: [String] = []
+        result.reserveCapacity(list.count + positions.count)
+
+        for (position, path) in list.enumerated() {
+            result.append(path)
+            if positions.contains(position) { result.append(path) }
+        }
+
+        save(name, result)
     }
 
     func reorder(_ order: [Int], in name: String) {
