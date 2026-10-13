@@ -290,13 +290,17 @@ final class Lyrics {
         case .failure(let failure):
             return .failure(failure)
         case .success(let json):
-            if let lyrics = (json as? [String: Any])?["plainLyrics"] as? String { return .success(lyrics) }
+            let song = json as? [String: Any]
+            if let lyrics = song?["syncedLyrics"] as? String, !lyrics.isEmpty { return .success(lyrics) }
+            if let lyrics = song?["plainLyrics"] as? String { return .success(lyrics) }
         }
 
         return await load(request("search", ["artist_name": track.artist, "track_name": track.title])).map { json in
-            (json as? [[String: Any]] ?? [])
+            let match = (json as? [[String: Any]] ?? [])
                 .filter { $0["plainLyrics"] is String }
-                .min { abs(($0["duration"] as? Double ?? 0) - track.duration) < abs(($1["duration"] as? Double ?? 0) - track.duration) }?["plainLyrics"] as? String ?? ""
+                .min { abs(($0["duration"] as? Double ?? 0) - track.duration) < abs(($1["duration"] as? Double ?? 0) - track.duration) }
+            if let lyrics = match?["syncedLyrics"] as? String, !lyrics.isEmpty { return lyrics }
+            return match?["plainLyrics"] as? String ?? ""
         }
     }
 
