@@ -352,11 +352,21 @@ struct SongTable: View {
     @State private var selection: Track.ID?
 
     var body: some View {
-        Table(tracks, selection: $selection) {
+        Table(of: Track.self, selection: $selection) {
             TableColumn("Title") { Text($0.title).padding(.vertical, Stripe.padding) }
             TableColumn("Artist") { Text($0.artist).padding(.vertical, Stripe.padding) }
             TableColumn("Album") { Text($0.album).padding(.vertical, Stripe.padding) }
             TableColumn("Time") { Text($0.duration.time).monospacedDigit().padding(.vertical, Stripe.padding) }.width(60)
+        } rows: {
+            if playlist == nil {
+                ForEach(tracks) { TableRow($0) }
+            } else {
+                ForEach(tracks) { TableRow($0).draggable($0.url.path) }
+                    .dropDestination(for: String.self) { index, paths in move(paths, to: index) }
+            }
+        }
+        .onDeleteCommand {
+            if let playlist, let selection { playlists.remove([selection], from: playlist) }
         }
         .contextMenu(forSelectionType: Track.ID.self) { ids in
             TrackMenu(tracks: tracks.filter { ids.contains($0.id) })
@@ -384,6 +394,21 @@ struct SongTable: View {
 
             player.play(tracks, at: index)
         }
+    }
+
+    private func move(_ paths: [String], to index: Int) {
+        guard let playlist else { return }
+
+        var order = tracks.map(\.url.path)
+        let moved = Set(paths).intersection(order)
+        guard !moved.isEmpty else { return }
+
+        let target = index - order[..<index].count { moved.contains($0) }
+        let dragged = order.filter { moved.contains($0) }
+
+        order.removeAll { moved.contains($0) }
+        order.insert(contentsOf: dragged, at: target)
+        playlists.reorder(order, in: playlist)
     }
 }
 
@@ -596,7 +621,10 @@ struct ContentView: View {
             if let current = player.current { lyrics.show(current) }
         }
         .onChange(of: search) { searching = true }
-        .onChange(of: page) { path = NavigationPath() }
+        .onChange(of: page) {
+            path = NavigationPath()
+            if case .playlist = page { library.query = "" }
+        }
         .onChange(of: lyrics.visible) {
             if lyrics.visible { depth = path.count }
         }

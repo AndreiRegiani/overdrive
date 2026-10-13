@@ -67,6 +67,13 @@ final class Playlists {
         save(name, (paths[name] ?? []).filter { !removed.contains($0) })
     }
 
+    func reorder(_ order: [String], in name: String) {
+        let shown = Set(order)
+        var next = order.makeIterator()
+
+        save(name, (paths[name] ?? []).map { shown.contains($0) ? next.next()! : $0 })
+    }
+
     func delete(_ name: String) {
         try? FileManager.default.trashItem(at: file(name), resultingItemURL: nil)
 
