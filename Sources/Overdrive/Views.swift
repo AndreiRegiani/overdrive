@@ -330,17 +330,21 @@ struct AlbumView: View {
 
 struct ArtistList: View {
     let artists: [(name: String, albums: [Album])]
+    @Environment(\.go) private var go
 
     var body: some View {
         List(artists, id: \.name) { artist in
-            NavigationLink(value: artist.name) {
+            Button { go(.artist(artist.name)) } label: {
                 HStack {
                     Cover(track: artist.albums[0].tracks[0]).frame(width: 40)
                     Text(artist.name)
                     Spacer()
                     Text(count(artist.albums.count, "album") + " · " + count(artist.albums.reduce(0) { $0 + $1.tracks.count }, "song")).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.forward").foregroundStyle(.tertiary)
                 }
+                .contentShape(.rect)
             }
+            .buttonStyle(.plain)
         }
     }
 }
@@ -543,13 +547,12 @@ struct ContentView: View {
             NavigationSplitView {
                 List(selection: Binding<Page?> { page } set: { value in if let value { lyrics.confirm { page = value } } }) {
                     ForEach(Section.allCases) { section in
-                        Label(section.rawValue, systemImage: section.symbol).tag(Page.section(section))
+                        row(section.rawValue, section.symbol, .section(section))
                     }
 
                     SwiftUI.Section {
                         ForEach(playlists.names, id: \.self) { name in
-                            Label(name, systemImage: "music.note.list")
-                                .tag(Page.playlist(name))
+                            row(name, "music.note.list", .playlist(name))
                                 .contextMenu {
                                     Button("Delete Playlist") { deleting = name }
                                 }
@@ -674,6 +677,14 @@ struct ContentView: View {
         }
         .onChange(of: library.query) { navigate(NavigationPath()) }
         .frame(minWidth: 820, minHeight: 520)
+    }
+
+    private func row(_ title: String, _ symbol: String, _ value: Page) -> some View {
+        Label(title, systemImage: symbol)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            .simultaneousGesture(TapGesture().onEnded { if value == page { navigate(NavigationPath()) } })
+            .tag(value)
     }
 
     private func navigate(_ value: NavigationPath) {
