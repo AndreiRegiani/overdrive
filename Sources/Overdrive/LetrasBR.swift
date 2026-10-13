@@ -59,16 +59,23 @@ enum LetrasBR {
     }
 
     @MainActor static func lyrics(artist: String, title: String) async -> String {
-        if let found = await search(artist, title), let text = await scrape(found), !text.isEmpty {
+        if let found = await search(artist, title), let text = await scrape(found, artist: artist, title: title), !text.isEmpty {
             return text
         }
-        if let text = await scrape(page(artist, title)), !text.isEmpty {
+        if let text = await scrape(page(artist, title), artist: artist, title: title), !text.isEmpty {
             return text
         }
         return ""
     }
 
-    @MainActor private static func scrape(_ url: URL) async -> String? {
+    nonisolated static func match(_ page: String, _ want: String) -> Bool {
+        let folded = slug(page)
+        guard !folded.isEmpty else { return false }
+        if folded == slug(want) { return true }
+        return folded.hasPrefix(slug(want) + "-")
+    }
+
+    @MainActor private static func scrape(_ url: URL, artist: String, title: String) async -> String? {
         final class Delegate: NSObject, WKNavigationDelegate, @unchecked Sendable {
             var done: CheckedContinuation<Bool, Never>?
             func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -103,16 +110,32 @@ enum LetrasBR {
             }
         }
         guard loaded else { return nil }
-        let script = "(function(){var el=document.querySelector('div.lyric-original');if(!el)el=document.querySelector('div.cnt-letra');if(!el)return '';var c=el.cloneNode(true);c.querySelectorAll('script,style').forEach(function(n){n.remove()});c.querySelectorAll('br').forEach(function(b){b.replaceWith('\\n')});c.querySelectorAll('p').forEach(function(p){p.prepend('\\n');p.append('\\n')});return (c.innerText||c.textContent||'').replace(/[ \\t]+\\n/g,'\\n').replace(/\\n{3,}/g,'\\n\\n').trim();})()"
+        let script = "(function(){var h=document.querySelectorAll('h1');var t=h.length?h[h.length-1].innerText:'';var s=[];document.querySelectorAll('h2').forEach(function(g){var v=g.innerText.trim();if(v)s.push(v)});var el=document.querySelector('div.lyric-original');if(!el)el=document.querySelector('div.cnt-letra');var l='';if(el){var c=el.cloneNode(true);c.querySelectorAll('script,style').forEach(function(n){n.remove()});c.querySelectorAll('br').forEach(function(b){b.replaceWith('\\n')});c.querySelectorAll('p').forEach(function(p){p.prepend('\\n');p.append('\\n')});l=(c.innerText||c.textContent||'').replace(/[ \\t]+\\n/g,'\\n').replace(/\\n{3,}/g,'\\n\\n').trim();}return JSON.stringify({t:t.trim(),as:s,l:l});})()"
         for _ in 0..<20 {
-            if let value = try? await web.evaluateJavaScript(script) as? String {
-                let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if text.count > 20 { return text }
+            guard let value = try? await web.evaluateJavaScript(script) as? String,
+                let data = value.data(using: .utf8),
+                let page = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
+                try? await Task.sleep(for: .milliseconds(500))
+                continue
             }
+            let names = page["as"] as? [String] ?? []
+            if (page["t"] as? String ?? "").isEmpty, names.isEmpty {
+                try? await Task.sleep(for: .milliseconds(500))
+                continue
+            }
+            guard names.contains(where: { match($0, artist) }), match(page["t"] as? String ?? "", title) else { return nil }
+            let text = ((page["l"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.count > 20 { return text }
             try? await Task.sleep(for: .milliseconds(500))
         }
-        if let value = try? await web.evaluateJavaScript(script) as? String {
-            let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let value = try? await web.evaluateJavaScript(script) as? String,
+            let data = value.data(using: .utf8),
+            let page = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            (page["as"] as? [String] ?? []).contains(where: { match($0, artist) }),
+            match(page["t"] as? String ?? "", title)
+        {
+            let text = ((page["l"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : text
         }
         return nil
