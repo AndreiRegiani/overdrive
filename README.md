@@ -33,7 +33,7 @@ Click the lyrics button in the toolbar to show the lyrics of the song that plays
 
 ## Playlists
 
-- Each playlist is a file in `~/Music/Library/Playlists`, for example `Rock.playlist`. The file has one absolute path of a song on each line.
+- Each playlist is a file in `~/Music/Library/Playlists`, for example `Rock.playlist`. The file has one path of a song on each line. The path is relative to the `Playlists` folder, so the playlists continue to work if the user name or the home folder changes.
 - Click the + button in the sidebar or choose File > New Playlist (Command-N) to make a playlist.
 - Right-click a song or an album and choose Add to Playlist. A playlist does not keep the same song two times.
 - Right-click a song in a playlist and choose Remove from Playlist.

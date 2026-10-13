@@ -2,7 +2,7 @@ import Foundation
 
 @Observable
 final class Playlists {
-    static let directory = URL.homeDirectory.appending(path: "Music/Library/Playlists", directoryHint: .isDirectory)
+    nonisolated static let directory = URL.homeDirectory.appending(path: "Music/Library/Playlists", directoryHint: .isDirectory)
 
     private(set) var names: [String] = []
     private(set) var paths: [String: [String]] = [:]
@@ -19,10 +19,16 @@ final class Playlists {
 
         for file in files where file.pathExtension == "playlist" {
             let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
-            paths[file.deletingPathExtension().lastPathComponent] = text.split(whereSeparator: \.isNewline).map(String.init)
+            paths[file.deletingPathExtension().lastPathComponent] = text.split(whereSeparator: \.isNewline).map {
+                $0.hasPrefix("/") ? String($0) : Self.directory.appending(path: $0).standardized.path
+            }
         }
 
         names = paths.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    nonisolated static func ignored(_ path: String) -> Bool {
+        path.hasPrefix(directory.path + "/")
     }
 
     func valid(_ name: String) -> Bool {
@@ -72,7 +78,19 @@ final class Playlists {
         paths[name] = list
 
         try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
-        try? Data(list.map { $0 + "\n" }.joined().utf8).write(to: file(name), options: .atomic)
+        try? Data(list.map { Self.relative($0) + "\n" }.joined().utf8).write(to: file(name), options: .atomic)
+    }
+
+    private static func relative(_ path: String) -> String {
+        let base = directory.standardized.pathComponents
+        let target = URL(filePath: path).standardized.pathComponents
+        var common = 0
+
+        while common < min(base.count, target.count), base[common] == target[common] {
+            common += 1
+        }
+
+        return (repeatElement("..", count: base.count - common) + target[common...]).joined(separator: "/")
     }
 
     private func file(_ name: String) -> URL {
