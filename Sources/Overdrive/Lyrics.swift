@@ -16,6 +16,9 @@ final class Lyrics {
 
     private nonisolated static let cache = URL.applicationSupportDirectory.appending(path: "Overdrive/Lyrics")
     private nonisolated static let agent = "Overdrive/\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0") (https://github.com/skhaz/overdrive)"
+    private nonisolated static let timeout: TimeInterval = 10
+    private nonisolated static let attempts = 3
+    private nonisolated static let retryDelay: ClosedRange<Double> = 1...3
 
     private(set) var track: Track?
     private(set) var loading = false
@@ -148,7 +151,7 @@ final class Lyrics {
         }
     }
 
-    private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB, Metal Kingdom or Letras.mus.br") {
+    private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB or lyrics.ovh") {
         switch result {
         case .success(let lyrics) where !lyrics.isEmpty:
             guard text.isEmpty else { return }
@@ -263,23 +266,39 @@ final class Lyrics {
             return (result, "LRCLIB")
         }
 
-        let metal = await MetalKingdom.lyrics(artist: track.artist, title: track.title)
-
-        if !metal.isEmpty {
-            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
-            try? Data(metal.utf8).write(to: key(track), options: .atomic)
-            return (.success(metal), "Metal Kingdom")
-        }
-
-        let fallback = await LetrasBR.lyrics(artist: track.artist, title: track.title)
-
-        if !fallback.isEmpty {
+        if let fallback = await ovh(artist: track.artist, title: track.title), !fallback.isEmpty {
             try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
             try? Data(fallback.utf8).write(to: key(track), options: .atomic)
-            return (.success(fallback), "Letras.mus.br")
+            return (.success(fallback), "lyrics.ovh")
         }
 
         return (result, "LRCLIB")
+    }
+
+    private nonisolated static func ovh(artist: String, title: String) async -> String? {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/")
+        guard let artist = artist.addingPercentEncoding(withAllowedCharacters: allowed),
+            let title = title.addingPercentEncoding(withAllowedCharacters: allowed),
+            let url = URL(string: "https://api.lyrics.ovh/v1/\(artist)/\(title)")
+        else { return nil }
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.setValue(agent, forHTTPHeaderField: "User-Agent")
+        for attempt in 0..<attempts {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(Double.random(in: retryDelay))) }
+            guard let (data, response) = try? await URLSession.shared.data(for: request) else { continue }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 200,
+                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let lyrics = json["lyrics"] as? String
+            {
+                let text = lyrics.trimmingCharacters(in: .whitespacesAndNewlines)
+                return text.isEmpty ? nil : text
+            }
+            if status == 404 { return nil }
+            guard status == 429 || status >= 500 else { return nil }
+        }
+        return nil
     }
 
     private nonisolated static func fetch(_ track: Track) async -> Result<String, Failure> {
@@ -300,10 +319,14 @@ final class Lyrics {
         }
 
         return await load(request("search", ["artist_name": track.artist, "track_name": track.title])).map { json in
-            let match = (json as? [[String: Any]] ?? [])
-                .filter { $0["plainLyrics"] is String }
-                .min { abs(($0["duration"] as? Double ?? 0) - track.duration) < abs(($1["duration"] as? Double ?? 0) - track.duration) }
-            if let lyrics = match?["syncedLyrics"] as? String, !lyrics.isEmpty { return lyrics }
+            let songs = json as? [[String: Any]] ?? []
+            let distance = { (song: [String: Any]) in abs((song["duration"] as? Double ?? 0) - track.duration) }
+            if let match = songs.filter({ ($0["syncedLyrics"] as? String)?.isEmpty == false }).min(by: { distance($0) < distance($1) }),
+                let lyrics = match["syncedLyrics"] as? String, !lyrics.isEmpty
+            {
+                return lyrics
+            }
+            let match = songs.filter({ $0["plainLyrics"] is String }).min(by: { distance($0) < distance($1) })
             return match?["plainLyrics"] as? String ?? ""
         }
     }
@@ -313,7 +336,7 @@ final class Lyrics {
         components.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
         components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
 
-        var request = URLRequest(url: components.url!, timeoutInterval: 10)
+        var request = URLRequest(url: components.url!, timeoutInterval: timeout)
         request.setValue(agent, forHTTPHeaderField: "User-Agent")
         return request
     }
@@ -321,8 +344,8 @@ final class Lyrics {
     private nonisolated static func load(_ request: URLRequest) async -> Result<Any, Failure> {
         var failure = Failure.busy
 
-        for retry in 0...3 {
-            if retry > 0 { try? await Task.sleep(for: .seconds(Double.random(in: 1...3))) }
+        for retry in 0..<attempts {
+            if retry > 0 { try? await Task.sleep(for: .seconds(Double.random(in: retryDelay))) }
 
             guard let (data, response) = try? await URLSession.shared.data(for: request) else {
                 failure = .offline
