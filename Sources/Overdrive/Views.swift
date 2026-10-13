@@ -27,6 +27,19 @@ extension Double {
     }
 }
 
+struct QueueMenu: View {
+    let tracks: [Track]
+    @Environment(Player.self) private var player
+
+    var body: some View {
+        if !tracks.isEmpty {
+            Button("Play Next") { player.insert(tracks, next: true) }
+            Button("Add to Queue") { player.insert(tracks, next: false) }
+            Divider()
+        }
+    }
+}
+
 struct FileMenu: View {
     let urls: [URL]
 
@@ -36,15 +49,6 @@ struct FileMenu: View {
         }
 
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(urls) }
-    }
-}
-
-struct LyricsButton: View {
-    let track: Track
-    @Environment(Lyrics.self) private var lyrics
-
-    var body: some View {
-        Button("Lyrics") { lyrics.show(track) }
     }
 }
 
@@ -194,7 +198,10 @@ struct AlbumGrid: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .contextMenu { FileMenu(urls: album.tracks.map(\.url)) }
+                    .contextMenu {
+                        QueueMenu(tracks: album.tracks)
+                        FileMenu(urls: album.tracks.map(\.url))
+                    }
                 }
             }
             .padding(20)
@@ -228,7 +235,10 @@ struct AlbumView: View {
                     }
                 }
                 .padding(.bottom, 20)
-                .contextMenu { FileMenu(urls: album.tracks.map(\.url)) }
+                .contextMenu {
+                    QueueMenu(tracks: album.tracks)
+                    FileMenu(urls: album.tracks.map(\.url))
+                }
 
                 LazyVStack(spacing: 0) {
                     ForEach(album.tracks.indices, id: \.self) { index in
@@ -257,7 +267,7 @@ struct AlbumView: View {
                         .stripe(index)
                         .onTapGesture(count: 2) { player.play(album.tracks, at: index) }
                         .contextMenu {
-                            LyricsButton(track: track)
+                            QueueMenu(tracks: [track])
                             FileMenu(urls: [track.url])
                         }
                     }
@@ -300,10 +310,7 @@ struct SongTable: View {
             TableColumn("Time") { Text($0.duration.time).monospacedDigit().padding(.vertical, Stripe.padding) }.width(60)
         }
         .contextMenu(forSelectionType: Track.ID.self) { ids in
-            if ids.count == 1, let track = tracks.first(where: { ids.contains($0.id) }) {
-                LyricsButton(track: track)
-            }
-
+            QueueMenu(tracks: tracks.filter { ids.contains($0.id) })
             FileMenu(urls: Array(ids))
         } primaryAction: { ids in
             guard let id = ids.first, let index = tracks.firstIndex(where: { $0.id == id }) else { return }

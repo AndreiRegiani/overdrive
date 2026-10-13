@@ -95,6 +95,27 @@ final class Player {
         load()
     }
 
+    func insert(_ tracks: [Track], next: Bool) {
+        guard let track = current, item != nil else { return play(tracks) }
+
+        let tracks = tracks.filter { $0 != track }
+        let added = Set(tracks)
+
+        queue.removeAll { added.contains($0) }
+        order.removeAll { added.contains($0) }
+        index = queue.firstIndex(of: track)!
+
+        if next {
+            queue.insert(contentsOf: tracks, at: index + 1)
+            order.insert(contentsOf: tracks, at: order.firstIndex(of: track)! + 1)
+        } else {
+            queue.append(contentsOf: tracks)
+            order.append(contentsOf: tracks)
+        }
+
+        requeue()
+    }
+
     func toggle() {
         playing ? pause() : resume()
     }
