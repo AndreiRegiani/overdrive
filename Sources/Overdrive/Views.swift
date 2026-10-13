@@ -133,6 +133,11 @@ struct LyricsView: View {
                         Text(track.artist).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer()
+                    if !lyrics.loading {
+                        Button("Refresh", systemImage: "arrow.clockwise", action: lyrics.refresh)
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.borderless)
+                    }
                     if !lines.isEmpty {
                         Button(editing ? "Done" : "Edit", systemImage: editing ? "checkmark" : "pencil", action: { editing.toggle() })
                             .labelStyle(.iconOnly)

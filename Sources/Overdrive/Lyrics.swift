@@ -69,6 +69,16 @@ final class Lyrics {
         pending = nil
     }
 
+    func refresh() {
+        confirm {
+            guard let track = self.track else { return }
+            try? FileManager.default.removeItem(at: Lyrics.file(track))
+            try? FileManager.default.removeItem(at: Lyrics.key(track))
+            try? FileManager.default.removeItem(at: Lyrics.oldKey(track))
+            self.open(track)
+        }
+    }
+
     func save() {
         guard let track else { return }
 
@@ -118,7 +128,7 @@ final class Lyrics {
         original = ""
         text = ""
 
-        if let lyrics = Lyrics.read(Lyrics.key(track)), !lyrics.isEmpty {
+        if let lyrics = Lyrics.cached(track), !lyrics.isEmpty {
             apply(.success(lyrics), from: "cache")
             loading = false
             return
@@ -158,7 +168,30 @@ final class Lyrics {
 
     private nonisolated static func key(_ track: Track) -> URL {
         let digest = SHA256.hash(data: Data("\(track.artist)\n\(track.title)\n\(track.album)\n\(Int(track.duration.rounded()))".utf8))
+        let hash = digest.map { String(format: "%02x", $0) }.joined()
+        let name = "\(safe(track.artist)) - \(safe(track.album)) - \(safe(track.title)) - \(Int(track.duration.rounded()))s-\(hash.prefix(8)).txt"
+        return cache.appending(path: name)
+    }
+
+    private nonisolated static func oldKey(_ track: Track) -> URL {
+        let digest = SHA256.hash(data: Data("\(track.artist)\n\(track.title)\n\(track.album)\n\(Int(track.duration.rounded()))".utf8))
         return cache.appending(path: digest.map { String(format: "%02x", $0) }.joined() + ".txt")
+    }
+
+    private nonisolated static func safe(_ text: String, _ limit: Int = 40) -> String {
+        var name = text.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        name = name.components(separatedBy: .newlines).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        while name.hasSuffix(".") { name.removeLast() }
+        if name.isEmpty { name = "unknown" }
+        return String(name.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private nonisolated static func cached(_ track: Track) -> String? {
+        if let lyrics = read(key(track)) { return lyrics }
+        guard let lyrics = read(oldKey(track)) else { return nil }
+        try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        try? FileManager.default.moveItem(at: oldKey(track), to: key(track))
+        return lyrics
     }
 
     private nonisolated static func read(_ url: URL) -> String? {
@@ -214,8 +247,9 @@ final class Lyrics {
 
     @concurrent
     private nonisolated static func lookup(_ track: Track) async -> (Result<String, Failure>, String) {
-        if let lyrics = read(key(track)), !lyrics.isEmpty { return (.success(lyrics), "cache") }
+        if let lyrics = cached(track), !lyrics.isEmpty { return (.success(lyrics), "cache") }
         try? FileManager.default.removeItem(at: key(track))
+        try? FileManager.default.removeItem(at: oldKey(track))
 
         let result = await fetch(track)
 
