@@ -129,7 +129,7 @@ final class Lyrics {
         }
     }
 
-    private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB, Metal Archives or Letras.mus.br") {
+    private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB, Metal Kingdom or Letras.mus.br") {
         switch result {
         case .success(let lyrics) where !lyrics.isEmpty:
             original = lyrics
@@ -173,12 +173,12 @@ final class Lyrics {
             return (result, "LRCLIB")
         }
 
-        let metal = await MetalArchives.lyrics(artist: track.artist, title: track.title)
+        let metal = await MetalKingdom.lyrics(artist: track.artist, title: track.title)
 
         if !metal.isEmpty {
             try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
             try? Data(metal.utf8).write(to: key(track), options: .atomic)
-            return (.success(metal), "Metal Archives")
+            return (.success(metal), "Metal Kingdom")
         }
 
         let fallback = await LetrasBR.lyrics(artist: track.artist, title: track.title)
