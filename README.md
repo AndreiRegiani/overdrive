@@ -37,6 +37,7 @@ Click the lyrics button in the toolbar to show the lyrics of the song that plays
 - Click the + button in the sidebar or choose File > New Playlist (Command-N) to make a playlist.
 - Right-click a song or an album and choose Add to Playlist. A playlist does not keep the same song two times.
 - Right-click a song in a playlist and choose Remove from Playlist.
+- Right-click a song in a playlist or in Songs and choose Go to Album or Go to Artist. Click Back to go back to the list.
 - Right-click a playlist in the sidebar and choose Delete Playlist. The app moves the file to the Trash.
 - If you edit a playlist file in a different app, choose File > Rescan Library (Command-R).
 

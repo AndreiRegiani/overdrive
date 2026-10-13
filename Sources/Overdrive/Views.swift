@@ -27,6 +27,27 @@ enum Page: Hashable {
     }
 }
 
+enum Destination {
+    case album(Album)
+    case artist(String)
+}
+
+struct GoAction: Equatable {
+    let action: (Destination) -> Void
+
+    func callAsFunction(_ destination: Destination) {
+        action(destination)
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        true
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var go = GoAction { _ in }
+}
+
 func count(_ number: Int, _ noun: String) -> String {
     "\(number) \(noun)\(number == 1 ? "" : "s")"
 }
@@ -324,8 +345,10 @@ struct ArtistList: View {
 struct SongTable: View {
     let tracks: [Track]
     var playlist: String?
+    @Environment(Library.self) private var library
     @Environment(Player.self) private var player
     @Environment(Playlists.self) private var playlists
+    @Environment(\.go) private var go
     @State private var selection: Track.ID?
 
     var body: some View {
@@ -340,6 +363,18 @@ struct SongTable: View {
 
             if let playlist, !ids.isEmpty {
                 Button("Remove from Playlist") { playlists.remove(ids, from: playlist) }
+                Divider()
+            }
+
+            if ids.count == 1, let track = tracks.first(where: { ids.contains($0.id) }) {
+                if let album = library.albums.first(where: { $0.id == track.albumID }) {
+                    Button("Go to Album") { go(.album(album)) }
+                }
+
+                if library.albums.contains(where: { $0.artist == track.artist }) {
+                    Button("Go to Artist") { go(.artist(track.artist)) }
+                }
+
                 Divider()
             }
 
@@ -505,6 +540,16 @@ struct ContentView: View {
                     .navigationDestination(for: String.self) { name in
                         AlbumGrid(albums: library.albums.filter { $0.artist == name }).navigationTitle(name).modifier(LyricsToolbar())
                     }
+                    .environment(\.go, GoAction { destination in
+                        var value = path
+
+                        switch destination {
+                        case .album(let album): value.append(album)
+                        case .artist(let name): value.append(name)
+                        }
+
+                        navigate(value)
+                    })
                 }
             }
             .overlay(alignment: .trailing) {
