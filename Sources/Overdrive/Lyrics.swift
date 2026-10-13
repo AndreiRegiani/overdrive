@@ -81,12 +81,15 @@ final class Lyrics {
 
     func save() {
         guard let track else { return }
+        generation += 1
 
         let url = Lyrics.file(track)
 
         do {
             if !text.isEmpty {
                 try Data(text.utf8).write(to: url, options: .atomic)
+                try? FileManager.default.createDirectory(at: Lyrics.cache, withIntermediateDirectories: true)
+                try? Data(text.utf8).write(to: Lyrics.key(track), options: .atomic)
             } else if FileManager.default.fileExists(atPath: url.path) {
                 try FileManager.default.removeItem(at: url)
             }
@@ -135,6 +138,7 @@ final class Lyrics {
         }
 
         loading = true
+        status = "Searching..."
 
         Task {
             let (result, source) = await Lyrics.lookup(track)
@@ -148,6 +152,7 @@ final class Lyrics {
     private func apply(_ result: Result<String, Failure>, from source: String = "LRCLIB, Metal Kingdom or Letras.mus.br") {
         switch result {
         case .success(let lyrics) where !lyrics.isEmpty:
+            guard text.isEmpty else { return }
             original = lyrics
             text = lyrics
             status = "From \(source). Click Save to keep them."

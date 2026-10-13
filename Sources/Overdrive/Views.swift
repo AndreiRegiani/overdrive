@@ -133,11 +133,9 @@ struct LyricsView: View {
                         Text(track.artist).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer()
-                    if !lyrics.loading {
-                        Button("Refresh", systemImage: "arrow.clockwise", action: lyrics.refresh)
-                            .labelStyle(.iconOnly)
-                            .buttonStyle(.borderless)
-                    }
+                    Button("Refresh", systemImage: "arrow.clockwise", action: lyrics.refresh)
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
                     if !lines.isEmpty {
                         Button(editing ? "Done" : "Edit", systemImage: editing ? "checkmark" : "pencil", action: { editing.toggle() })
                             .labelStyle(.iconOnly)
@@ -146,7 +144,7 @@ struct LyricsView: View {
                 }
 
                 Group {
-                    if lyrics.loading {
+                    if lyrics.loading, lyrics.text.isEmpty, lyrics.synced.isEmpty {
                         ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if !editing, !lines.isEmpty {
                         SyncedLyrics(lines: lines, current: current) { player.seek($0) }
@@ -162,9 +160,12 @@ struct LyricsView: View {
                 HStack {
                     Text(lyrics.status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     Spacer()
-                    Button("Save", action: lyrics.save)
-                        .keyboardShortcut("s")
-                        .disabled(!lyrics.changed || lyrics.loading)
+                    Button("Save") {
+                        lyrics.save()
+                        editing = false
+                    }
+                    .keyboardShortcut("s")
+                    .disabled(!lyrics.changed || lyrics.loading)
                 }
             }
             .padding()
