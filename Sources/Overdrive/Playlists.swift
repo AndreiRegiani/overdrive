@@ -61,21 +61,38 @@ final class Playlists {
         save(name, list)
     }
 
-    func remove(_ urls: Set<URL>, from name: String) {
-        let removed = Set(urls.map(\.path))
+    func remove(_ position: Int, from name: String) {
+        var list = paths[name] ?? []
+        guard list.indices.contains(position) else { return }
 
-        save(name, (paths[name] ?? []).filter { !removed.contains($0) })
+        list.remove(at: position)
+        save(name, list)
     }
 
-    func reorder(_ order: [String], in name: String) {
-        let shown = Set(order)
-        var next = order.makeIterator()
+    func duplicate(_ position: Int, in name: String) {
+        var list = paths[name] ?? []
+        guard list.indices.contains(position) else { return }
 
-        save(name, (paths[name] ?? []).map { shown.contains($0) ? next.next()! : $0 })
+        list.insert(list[position], at: position + 1)
+        save(name, list)
+    }
+
+    func reorder(_ order: [Int], in name: String) {
+        let list = paths[name] ?? []
+        var result = list
+
+        for (slot, position) in zip(order.sorted(), order) {
+            result[slot] = list[position]
+        }
+
+        save(name, result)
     }
 
     func delete(_ name: String) {
-        try? FileManager.default.trashItem(at: file(name), resultingItemURL: nil)
+        let backup = Self.directory.appending(path: name + ".backup", directoryHint: .notDirectory)
+
+        try? FileManager.default.removeItem(at: backup)
+        guard (try? FileManager.default.moveItem(at: file(name), to: backup)) != nil else { return }
 
         paths[name] = nil
         names.removeAll { $0 == name }

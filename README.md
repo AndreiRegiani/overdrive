@@ -35,12 +35,13 @@ Click the lyrics button in the toolbar to show the lyrics of the song that plays
 
 - Each playlist is a file in `~/Music/Library/Playlists`, for example `Rock.playlist`. The file has one path of a song on each line. The path is relative to the `Playlists` folder, so the playlists continue to work if the user name or the home folder changes.
 - Click the + button in the sidebar or choose File > New Playlist (Command-N) to make a playlist.
-- Right-click a song or an album and choose Add to Playlist. A playlist does not keep the same song two times.
+- Right-click a song or an album and choose Add to Playlist. Add to Playlist does not add a song that is already in the playlist. In a playlist, the menu does not show the playlist that is open.
+- Right-click a song in a playlist and choose Duplicate to have the same song two or more times.
 - Drag a song in a playlist to change the order.
-- Right-click a song in a playlist and choose Remove from Playlist, or select it and press Delete.
+- Right-click a song in a playlist and choose Remove from Playlist, or select it and press Delete. The app asks before it removes the song.
 - When you open a playlist, the app clears the search field.
 - Right-click a song in a playlist or in Songs and choose Go to Album or Go to Artist. Click Back to go back to the list.
-- Right-click a playlist in the sidebar and choose Delete Playlist. The app moves the file to the Trash.
+- Right-click a playlist in the sidebar and choose Delete Playlist. The app asks first, then renames the file to `{name}.backup` in the same folder. To restore the playlist, rename the file back to `{name}.playlist` and choose File > Rescan Library.
 - If you edit a playlist file in a different app, choose File > Rescan Library (Command-R).
 
 ## Install

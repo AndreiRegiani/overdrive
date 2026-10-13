@@ -62,6 +62,7 @@ extension Double {
 
 struct TrackMenu: View {
     let tracks: [Track]
+    var exclude: String?
     @Environment(Player.self) private var player
     @Environment(Playlists.self) private var playlists
 
@@ -71,11 +72,13 @@ struct TrackMenu: View {
             Button("Add to Queue") { player.insert(tracks, next: false) }
 
             Menu("Add to Playlist") {
-                ForEach(playlists.names, id: \.self) { name in
+                let names = playlists.names.filter { $0 != exclude }
+
+                ForEach(names, id: \.self) { name in
                     Button(name) { playlists.add(tracks.map(\.url), to: name) }
                 }
 
-                if !playlists.names.isEmpty { Divider() }
+                if !names.isEmpty { Divider() }
 
                 Button("New Playlist…") { playlists.naming = tracks.map(\.url) }
             }
@@ -342,50 +345,41 @@ struct ArtistList: View {
     }
 }
 
+struct GoMenu: View {
+    let track: Track
+    @Environment(Library.self) private var library
+    @Environment(\.go) private var go
+
+    var body: some View {
+        if let album = library.albums.first(where: { $0.id == track.albumID }) {
+            Button("Go to Album") { go(.album(album)) }
+        }
+
+        if library.albums.contains(where: { $0.artist == track.artist }) {
+            Button("Go to Artist") { go(.artist(track.artist)) }
+        }
+
+        Divider()
+    }
+}
+
 struct SongTable: View {
     let tracks: [Track]
-    var playlist: String?
-    @Environment(Library.self) private var library
     @Environment(Player.self) private var player
-    @Environment(Playlists.self) private var playlists
-    @Environment(\.go) private var go
     @State private var selection: Track.ID?
 
     var body: some View {
-        Table(of: Track.self, selection: $selection) {
+        Table(tracks, selection: $selection) {
             TableColumn("Title") { Text($0.title).padding(.vertical, Stripe.padding) }
             TableColumn("Artist") { Text($0.artist).padding(.vertical, Stripe.padding) }
             TableColumn("Album") { Text($0.album).padding(.vertical, Stripe.padding) }
             TableColumn("Time") { Text($0.duration.time).monospacedDigit().padding(.vertical, Stripe.padding) }.width(60)
-        } rows: {
-            if playlist == nil {
-                ForEach(tracks) { TableRow($0) }
-            } else {
-                ForEach(tracks) { TableRow($0).draggable($0.url.path) }
-                    .dropDestination(for: String.self) { index, paths in move(paths, to: index) }
-            }
-        }
-        .onDeleteCommand {
-            if let playlist, let selection { playlists.remove([selection], from: playlist) }
         }
         .contextMenu(forSelectionType: Track.ID.self) { ids in
             TrackMenu(tracks: tracks.filter { ids.contains($0.id) })
 
-            if let playlist, !ids.isEmpty {
-                Button("Remove from Playlist") { playlists.remove(ids, from: playlist) }
-                Divider()
-            }
-
             if ids.count == 1, let track = tracks.first(where: { ids.contains($0.id) }) {
-                if let album = library.albums.first(where: { $0.id == track.albumID }) {
-                    Button("Go to Album") { go(.album(album)) }
-                }
-
-                if library.albums.contains(where: { $0.artist == track.artist }) {
-                    Button("Go to Artist") { go(.artist(track.artist)) }
-                }
-
-                Divider()
+                GoMenu(track: track)
             }
 
             FileMenu(urls: Array(ids))
@@ -395,12 +389,66 @@ struct SongTable: View {
             player.play(tracks, at: index)
         }
     }
+}
 
-    private func move(_ paths: [String], to index: Int) {
-        guard let playlist else { return }
+struct PlaylistView: View {
+    let name: String
+    @Environment(Library.self) private var library
+    @Environment(Player.self) private var player
+    @Environment(Playlists.self) private var playlists
+    @State private var selection: Row.ID?
+    @State private var removing: Row?
 
-        var order = tracks.map(\.url.path)
-        let moved = Set(paths).intersection(order)
+    var body: some View {
+        let rows = library.rows(playlists.paths[name] ?? [])
+
+        if playlists.paths[name]?.isEmpty ?? true {
+            ContentUnavailableView("No Songs", systemImage: "music.note.list", description: Text("Right-click a song or an album and choose Add to Playlist."))
+        } else {
+            Table(of: Row.self, selection: $selection) {
+                TableColumn("Title") { Text($0.track.title).padding(.vertical, Stripe.padding) }
+                TableColumn("Artist") { Text($0.track.artist).padding(.vertical, Stripe.padding) }
+                TableColumn("Album") { Text($0.track.album).padding(.vertical, Stripe.padding) }
+                TableColumn("Time") { Text($0.track.duration.time).monospacedDigit().padding(.vertical, Stripe.padding) }.width(60)
+            } rows: {
+                ForEach(rows) { TableRow($0).draggable(String($0.id)) }
+                    .dropDestination(for: String.self) { index, ids in move(rows, ids.compactMap { Int($0) }, to: index) }
+            }
+            .onDeleteCommand {
+                removing = rows.first { $0.id == selection }
+            }
+            .contextMenu(forSelectionType: Row.ID.self) { ids in
+                if let row = rows.first(where: { ids.contains($0.id) }) {
+                    TrackMenu(tracks: [row.track], exclude: name)
+                    Button("Remove from Playlist") { removing = row }
+                    Button("Duplicate") {
+                        selection = nil
+                        playlists.duplicate(row.id, in: name)
+                    }
+                    Divider()
+                    GoMenu(track: row.track)
+                    FileMenu(urls: [row.track.url])
+                }
+            } primaryAction: { ids in
+                guard let id = ids.first, let index = rows.firstIndex(where: { $0.id == id }) else { return }
+
+                player.play(rows.map(\.track), at: index)
+            }
+            .confirmationDialog("Remove “\(removing?.track.title ?? "")” from the playlist?", isPresented: Binding { removing != nil } set: { if !$0 { removing = nil } }) {
+                Button("Remove", role: .destructive) {
+                    if let removing {
+                        selection = nil
+                        playlists.remove(removing.id, from: name)
+                    }
+                }
+            }
+            .navigationSubtitle(count(rows.count, "song"))
+        }
+    }
+
+    private func move(_ rows: [Row], _ ids: [Int], to index: Int) {
+        var order = rows.map(\.id)
+        let moved = Set(ids).intersection(order)
         guard !moved.isEmpty else { return }
 
         let target = index - order[..<index].count { moved.contains($0) }
@@ -408,23 +456,8 @@ struct SongTable: View {
 
         order.removeAll { moved.contains($0) }
         order.insert(contentsOf: dragged, at: target)
-        playlists.reorder(order, in: playlist)
-    }
-}
-
-struct PlaylistView: View {
-    let name: String
-    @Environment(Library.self) private var library
-    @Environment(Playlists.self) private var playlists
-
-    var body: some View {
-        let tracks = library.tracks(playlists.paths[name] ?? [])
-
-        if playlists.paths[name]?.isEmpty ?? true {
-            ContentUnavailableView("No Songs", systemImage: "music.note.list", description: Text("Right-click a song or an album and choose Add to Playlist."))
-        } else {
-            SongTable(tracks: tracks, playlist: name).navigationSubtitle(count(tracks.count, "song"))
-        }
+        selection = nil
+        playlists.reorder(order, in: name)
     }
 }
 
@@ -499,6 +532,7 @@ struct ContentView: View {
     @State private var depth = 0
     @State private var page = Page.section(.albums)
     @State private var name = ""
+    @State private var deleting: String?
     @State private var path = NavigationPath()
     @FocusState private var searching: Bool
 
@@ -517,10 +551,7 @@ struct ContentView: View {
                             Label(name, systemImage: "music.note.list")
                                 .tag(Page.playlist(name))
                                 .contextMenu {
-                                    Button("Delete Playlist") {
-                                        if page == .playlist(name) { page = .section(.albums) }
-                                        playlists.delete(name)
-                                    }
+                                    Button("Delete Playlist") { deleting = name }
                                 }
                         }
                     } header: {
@@ -615,6 +646,16 @@ struct ContentView: View {
             }
             .disabled(!playlists.valid(name))
             Button("Cancel", role: .cancel) { name = "" }
+        }
+        .confirmationDialog("Delete the playlist “\(deleting ?? "")”?", isPresented: Binding { deleting != nil } set: { if !$0 { deleting = nil } }) {
+            Button("Delete", role: .destructive) {
+                if let deleting {
+                    if page == .playlist(deleting) { page = .section(.albums) }
+                    playlists.delete(deleting)
+                }
+            }
+        } message: {
+            Text("The app keeps a copy as “\(deleting ?? "").backup” in the Playlists folder.")
         }
         .environment(lyrics)
         .onChange(of: player.current) {

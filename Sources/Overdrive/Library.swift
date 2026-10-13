@@ -25,6 +25,11 @@ nonisolated struct Track: Identifiable, Hashable, Sendable {
     }
 }
 
+nonisolated struct Row: Identifiable, Sendable {
+    let id: Int
+    let track: Track
+}
+
 nonisolated struct Album: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
@@ -160,12 +165,14 @@ final class Library {
         }
     }
 
-    func tracks(_ paths: [String]) -> [Track] {
-        let all = paths.compactMap { lookup[$0] }
-        guard !query.isEmpty else { return all }
+    func rows(_ paths: [String]) -> [Row] {
+        let hits = query.isEmpty ? nil : Set(tracks)
 
-        let hits = Set(tracks)
-        return all.filter(hits.contains)
+        return paths.indices.compactMap { position in
+            guard let track = lookup[paths[position]], hits?.contains(track) ?? true else { return nil }
+
+            return Row(id: position, track: track)
+        }
     }
 
     private func search() {
