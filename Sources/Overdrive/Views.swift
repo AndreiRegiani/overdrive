@@ -176,33 +176,134 @@ struct LyricsView: View {
     }
 }
 
-struct SyncedLyrics: View {
+struct SyncedLyrics: NSViewRepresentable {
     let lines: [SyncedLine]
     let current: Int?
     let seek: (Double) -> Void
 
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(lines.indices, id: \.self) { index in
-                        Text(lines[index].text)
-                            .font(.body)
-                            .foregroundStyle(index == current ? .primary : .secondary)
-                            .contentShape(.rect)
-                            .onTapGesture { seek(lines[index].time) }
-                            .id(index)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .onChange(of: current) { _, index in
-                guard let index else { return }
-                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(index, anchor: .center) }
-            }
-            .onAppear { if let current { proxy.scrollTo(current, anchor: .center) } }
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let text = LyricsTextView(usingTextLayoutManager: false)
+        text.isEditable = false
+        text.isSelectable = true
+        text.drawsBackground = false
+        text.textContainerInset = NSSize(width: 8, height: 12)
+        text.isVerticallyResizable = true
+        text.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+        text.autoresizingMask = .width
+        text.textContainer?.widthTracksTextView = true
+        text.click = context.coordinator.click
+
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.documentView = text
+        context.coordinator.text = text
+        NotificationCenter.default.addObserver(context.coordinator, selector: #selector(Coordinator.resize), name: NSView.frameDidChangeNotification, object: scroll)
+
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.seek = seek
+
+        if coordinator.lines != lines {
+            coordinator.load(lines, current: current)
+            coordinator.center(animated: false)
+        } else if coordinator.current != current {
+            coordinator.highlight(current)
+            coordinator.center(animated: true)
         }
+    }
+
+    final class Coordinator: NSObject {
+        weak var text: NSTextView?
+        var seek: (Double) -> Void = { _ in }
+        private(set) var lines: [SyncedLine] = []
+        private(set) var current: Int?
+        private var ranges: [NSRange] = []
+
+        func load(_ lines: [SyncedLine], current: Int?) {
+            guard let storage = text?.textStorage else { return }
+
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.paragraphSpacing = 4
+            let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.preferredFont(forTextStyle: .body), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph]
+            var location = 0
+
+            ranges = lines.map {
+                let range = NSRange(location: location, length: ($0.text as NSString).length)
+                location += range.length + 1
+                return range
+            }
+
+            storage.setAttributedString(NSAttributedString(string: lines.map(\.text).joined(separator: "\n"), attributes: attributes))
+            self.lines = lines
+            self.current = nil
+            highlight(current)
+        }
+
+        func highlight(_ index: Int?) {
+            guard let storage = text?.textStorage else { return }
+
+            if let old = current, ranges.indices.contains(old) {
+                storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: ranges[old])
+            }
+
+            if let index, ranges.indices.contains(index) {
+                storage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: ranges[index])
+            }
+
+            current = index
+        }
+
+        func center(animated: Bool) {
+            guard let text, let scroll = text.enclosingScrollView, let manager = text.layoutManager, let container = text.textContainer,
+                  let current, ranges.indices.contains(current), text.selectedRange().length == 0 else { return }
+
+            manager.ensureLayout(for: container)
+            let glyphs = manager.glyphRange(forCharacterRange: ranges[current], actualCharacterRange: nil)
+            let rect = manager.boundingRect(forGlyphRange: glyphs, in: container)
+            let visible = scroll.contentView.bounds.height
+            let y = min(max(rect.midY + text.textContainerInset.height - visible / 2, 0), max(text.frame.height - visible, 0))
+            let origin = NSPoint(x: 0, y: y)
+
+            if animated {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.3
+                    scroll.contentView.animator().setBoundsOrigin(origin)
+                }
+            } else {
+                scroll.contentView.setBoundsOrigin(origin)
+            }
+
+            scroll.reflectScrolledClipView(scroll.contentView)
+        }
+
+        @objc func resize() {
+            center(animated: false)
+        }
+
+        func click(_ index: Int) {
+            guard let line = ranges.lastIndex(where: { $0.location <= index }) else { return }
+
+            seek(lines[line].time)
+        }
+    }
+}
+
+final class LyricsTextView: NSTextView {
+    var click: (Int) -> Void = { _ in }
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        guard event.clickCount == 1, selectedRange().length == 0 else { return }
+
+        click(characterIndexForInsertion(at: convert(event.locationInWindow, from: nil)))
     }
 }
 

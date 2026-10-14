@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-nonisolated struct SyncedLine: Sendable {
+nonisolated struct SyncedLine: Equatable, Sendable {
     let time: Double
     let text: String
 }
