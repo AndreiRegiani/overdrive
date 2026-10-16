@@ -48,7 +48,7 @@ Click the lyrics button in the toolbar to show the lyrics of the song that plays
 
 ## Credits
 
-The app icon is "iPod Dark - macOS 27" by [divisionseven](https://github.com/divisionseven), from [macOSicons](https://macosicons.com/icon/ipod-dark-macos-27-GebU2HX2YT). The MIT license does not apply to the icon.
+The app icon is "iPod Orange" by p_bluealt, from [macOSicons](https://macosicons.com/icon/ipod-orange-siHDxmuV8f). The MIT license does not apply to the icon.
 
 ## Install
 
