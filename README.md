@@ -17,7 +17,7 @@ Music player for macOS 26 or later.
 - Opens tracks and albums in Mp3tag from the context menu.
 - Right-click a song or an album and choose Play Next or Add to Queue.
 - Select more than one song with Command-click or Shift-click. Then right-click a selected song to use the menu on all selected songs. Right-click a song that is not selected to use the menu on only that song.
-- Use the media keys (F7, F8, F9) to go to the previous song, play or pause, and go to the next song.
+- Use the media keys (⏪︎ ⏯︎ ⏩︎) to go to the previous song, play or pause, and go to the next song.
 - Press Control-P to clear the search field and type a new search.
 - Click the cover or the title in the player bar to open the album that plays.
 
@@ -88,3 +88,7 @@ Do all tests on the release from GitHub and Homebrew, the same as a real install
 1. Get an API key at https://www.last.fm/api/account/create.
 2. Build with the key: `LASTFM_KEY=... LASTFM_SECRET=... ./build.sh`.
 3. Open Settings, enter the Last.fm username (not the email) and password, and click Connect. The app keeps only the session key, in `~/Library/Application Support/Overdrive/lastfm.plist`.
+
+## Credits
+
+The app icon is "iPod Dark - macOS 27" by [divisionseven](https://github.com/divisionseven), from [macOSicons](https://macosicons.com/icon/ipod-dark-macos-27-GebU2HX2YT). The MIT license does not apply to the icon.
