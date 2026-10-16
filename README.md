@@ -46,6 +46,10 @@ Click the lyrics button in the toolbar to show the lyrics of the song that plays
 - Right-click a playlist in the sidebar and choose Delete Playlist. The app asks first, then renames the file to `{name}.backup` in the same folder. To restore the playlist, rename the file back to `{name}.playlist` and choose File > Rescan Library.
 - If you edit a playlist file in a different app, choose File > Rescan Library (Command-R).
 
+## Credits
+
+The app icon is "iPod Dark - macOS 27" by [divisionseven](https://github.com/divisionseven), from [macOSicons](https://macosicons.com/icon/ipod-dark-macos-27-GebU2HX2YT). The MIT license does not apply to the icon.
+
 ## Install
 
 ```sh
@@ -88,7 +92,3 @@ Do all tests on the release from GitHub and Homebrew, the same as a real install
 1. Get an API key at https://www.last.fm/api/account/create.
 2. Build with the key: `LASTFM_KEY=... LASTFM_SECRET=... ./build.sh`.
 3. Open Settings, enter the Last.fm username (not the email) and password, and click Connect. The app keeps only the session key, in `~/Library/Application Support/Overdrive/lastfm.plist`.
-
-## Credits
-
-The app icon is "iPod Dark - macOS 27" by [divisionseven](https://github.com/divisionseven), from [macOSicons](https://macosicons.com/icon/ipod-dark-macos-27-GebU2HX2YT). The MIT license does not apply to the icon.
