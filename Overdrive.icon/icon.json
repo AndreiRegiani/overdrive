@@ -1,14 +1,14 @@
 {
   "fill" : {
-    "automatic-gradient" : "extended-srgb:0.96000,0.72000,0.04000,1.00000"
+    "solid" : "extended-srgb:0.56863,0.56863,0.56863,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "glass" : true,
-          "image-name" : "record.svg",
-          "name" : "record"
+          "glass" : false,
+          "image-name" : "ipod.png",
+          "name" : "ipod"
         }
       ],
       "shadow" : {
@@ -16,7 +16,7 @@
         "opacity" : 0.5
       },
       "translucency" : {
-        "enabled" : true,
+        "enabled" : false,
         "value" : 0.5
       }
     }
