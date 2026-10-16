@@ -401,6 +401,7 @@ struct AlbumGrid: View {
                             Text(album.artist).lineLimit(1).foregroundStyle(.secondary)
                             Text(count(album.tracks.count, "song")).font(.caption).foregroundStyle(.tertiary)
                         }
+                        .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
                     .contextMenu {

@@ -279,7 +279,7 @@ final class Library {
         var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
         let callback: FSEventStreamCallback = { _, info, count, paths, _, _ in
             let paths = unsafeBitCast(paths, to: NSArray.self)
-            guard (0..<count).contains(where: { !Lyrics.ignored(paths[$0] as! String) && !Playlists.ignored(paths[$0] as! String) }) else { return }
+            guard (0..<count).contains(where: { let path = paths[$0] as! String; return !path.contains("/.") && !Lyrics.ignored(path) && !Playlists.ignored(path) }) else { return }
 
             MainActor.assumeIsolated {
                 Unmanaged<Library>.fromOpaque(info!).takeUnretainedValue().scan()
