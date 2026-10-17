@@ -868,7 +868,6 @@ struct ContentView: View {
         Label(title, systemImage: symbol)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
-            .simultaneousGesture(TapGesture().onEnded { if value == page { navigate(NavigationPath()) } })
             .tag(value)
     }
 
